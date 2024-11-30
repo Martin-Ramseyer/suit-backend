@@ -1,0 +1,112 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RolUsuario {
+  ADMIN
+  RRPP
+  CAJERO
+}
+
+enum TipoBeneficio {
+  ENTRADA_FREE
+  PULSERA_VIP
+  CONSUMICION
+}
+
+model Usuario {
+  id               Int                @id @default(autoincrement())
+  nombre           String             @db.VarChar(100)
+  username         String             @unique @db.VarChar(50)
+  password         String             @db.VarChar(255)
+  rol              RolUsuario
+  activo           Boolean            @default(true)
+  invitados        Invitado[]
+  beneficios       UsuarioBeneficio[]
+  registrosDomingo RegistroDomingo[]
+
+  @@index([username])
+  @@map("usuarios")
+}
+
+model Beneficio {
+  id                   Int                  @id @default(autoincrement())
+  nombre               TipoBeneficio        @unique
+  usuarioBeneficios    UsuarioBeneficio[]
+  invitadoBeneficios   InvitadoBeneficio[]
+  beneficiosEntregados BeneficioEntregado[]
+
+  @@map("beneficios")
+}
+
+model UsuarioBeneficio {
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId   Int
+  beneficio   Beneficio @relation(fields: [beneficioId], references: [id], onDelete: Cascade)
+  beneficioId Int
+
+  @@id([usuarioId, beneficioId])
+  @@map("usuarios_beneficios")
+}
+
+model Invitado {
+  id                    Int                 @id @default(autoincrement())
+  nombre                String              @db.VarChar(100)
+  usuario               Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId             Int
+  ingreso               Boolean             @default(false)
+  fechaCreacion         DateTime            @default(now()) @db.Timestamp(6)
+  fechaIngreso          DateTime?           @db.Timestamp(6)
+  cantidadAcompañantes Int                 @default(0)
+  beneficios            InvitadoBeneficio[]
+
+  @@index([usuarioId, ingreso])
+  @@map("invitados")
+}
+
+model InvitadoBeneficio {
+  invitado    Invitado  @relation(fields: [invitadoId], references: [id], onDelete: Cascade)
+  invitadoId  Int
+  beneficio   Beneficio @relation(fields: [beneficioId], references: [id], onDelete: Cascade)
+  beneficioId Int
+  cantidad    Int       @default(1)
+
+  @@id([invitadoId, beneficioId])
+  @@map("invitados_beneficios")
+}
+
+model RegistroDomingo {
+  id        Int      @id @default(autoincrement())
+  fecha     DateTime @db.Date
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId Int
+
+  // Métricas detalladas
+  totalInvitados      Int @default(0)
+  invitadosIngresados Int @default(0)
+
+  // Beneficios detallados
+  beneficiosEntregados BeneficioEntregado[]
+
+  // Campos para identificación única
+  @@unique([usuarioId, fecha])
+  @@index([fecha])
+  @@map("registros_domingo")
+}
+
+model BeneficioEntregado {
+  id                Int             @id @default(autoincrement())
+  registroDomingo   RegistroDomingo @relation(fields: [registroDomingoId], references: [id], onDelete: Cascade)
+  registroDomingoId Int
+  beneficio         Beneficio       @relation(fields: [beneficioId], references: [id])
+  beneficioId       Int
+  cantidad          Int             @default(0)
+
+  @@unique([registroDomingoId, beneficioId])
+  @@map("beneficios_entregados")
+}
